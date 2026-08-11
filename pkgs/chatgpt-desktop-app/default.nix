@@ -3,6 +3,7 @@
   stdenv,
   fetchurl,
   dpkg,
+  asar,
   autoPatchelfHook,
   makeWrapper,
   wrapGAppsHook3,
@@ -121,6 +122,7 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [
     dpkg
+    asar
     autoPatchelfHook
     makeWrapper
     wrapGAppsHook3
@@ -145,6 +147,20 @@ stdenv.mkDerivation {
     mkdir -p "$out/lib" "$out/share"
     cp -a usr/lib/chatgpt "$out/lib/"
     cp -a usr/share/applications usr/share/doc usr/share/pixmaps "$out/share/"
+
+    # Patchelf relocates Electron's Nix store interpreter past the first 2 KiB
+    # of the executable. The bundled detect-libc cannot find it there, and its
+    # process.report fallback aborts in Electron's worker thread. Let it detect
+    # glibc through the Nix-provided ldd instead.
+    asar extract usr/lib/chatgpt/resources/app.asar app
+    substituteInPlace \
+      app/node_modules/@parcel/watcher/node_modules/detect-libc/lib/filesystem.js \
+      --replace-fail "/usr/bin/ldd" "${lib.getBin stdenv.cc.libc}/bin/ldd"
+    asar pack app "$TMPDIR/app.asar" \
+      --unpack-dir "{node_modules/@parcel,node_modules/@worklouder,node_modules/better-sqlite3,node_modules/node-pty}"
+    cp "$TMPDIR/app.asar" "$out/lib/chatgpt/resources/app.asar"
+    cp -a "$TMPDIR/app.asar.unpacked/." \
+      "$out/lib/chatgpt/resources/app.asar.unpacked/"
 
     substituteInPlace "$out/share/applications/chatgpt.desktop" \
       --replace-fail "Exec=chatgpt %U" "Exec=$out/bin/chatgpt %U"
