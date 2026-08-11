@@ -1,0 +1,64 @@
+name: Update ChatGPT Desktop App
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-chatgpt-desktop-app
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update package
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Update package metadata
+        run: ./scripts/update.sh
+
+      - name: Detect package changes
+        id: changes
+        run: |
+          if git diff --quiet -- pkgs/chatgpt-desktop-app/sources.nix; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          version="$(sed -n 's/.*version = "\([^"]*\)";.*/\1/p' pkgs/chatgpt-desktop-app/sources.nix | head -n1)"
+          if [ -z "$version" ]; then
+            echo "Could not parse ChatGPT Desktop App version" >&2
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate updated package
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          nix build .#chatgpt-desktop-app --print-build-logs
+          nix flake check --all-systems --no-build
+
+      - name: Commit and push update
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pkgs/chatgpt-desktop-app/sources.nix
+          git commit -m "Update ChatGPT Desktop App to ${{ steps.changes.outputs.version }}"
+          git push
