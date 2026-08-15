@@ -1,17 +1,17 @@
 {
-  version = "26.810.50856";
+  version = "26.810.52044";
 
   platforms = {
     x86_64-linux = {
       debArch = "amd64";
-      etag = "0x8DEFA312F4EA46D";
-      hash = "sha256-47R8EpjgHkoqpU8SDrFpg0xpEb0pUSK8Q+XNFkLBpLo=";
+      etag = "0x8DEFA8E460D8260";
+      hash = "sha256-cIoVobt24rt/DjduUUU5H6J3rTpkBXwdMlN73CobTm4=";
     };
 
     aarch64-linux = {
       debArch = "arm64";
-      etag = "0x8DEFA312B0D0E18";
-      hash = "sha256-q4UbLrczdCKfjaoXmT0GydAxCU0O6sXn9OAsByoRD2I=";
+      etag = "0x8DEFA8E41A61721";
+      hash = "sha256-br6mgbHklNIYoZn2OLS8iG6U4UWN1hB5seOQpvuY/dI=";
     };
   };
 }
