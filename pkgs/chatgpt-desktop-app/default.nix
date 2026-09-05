@@ -6,6 +6,7 @@
   asar,
   autoPatchelfHook,
   makeWrapper,
+  nodejs,
   wrapGAppsHook3,
   alsa-lib,
   at-spi2-core,
@@ -125,6 +126,7 @@ stdenv.mkDerivation {
     asar
     autoPatchelfHook
     makeWrapper
+    nodejs
     wrapGAppsHook3
   ];
 
@@ -156,6 +158,9 @@ stdenv.mkDerivation {
     substituteInPlace \
       app/node_modules/@parcel/watcher/node_modules/detect-libc/lib/filesystem.js \
       --replace-fail "/usr/bin/ldd" "${lib.getBin stdenv.cc.libc}/bin/ldd"
+    # fs.cp preserves read-only Nix store modes. The app must be able to edit
+    # plugin variants in its staged cache before publishing a new marketplace.
+    node ${./patch-plugin-permissions.cjs} app/.vite/build
     asar pack app "$TMPDIR/app.asar" \
       --unpack-dir "{node_modules/@parcel,node_modules/@worklouder,node_modules/better-sqlite3,node_modules/node-pty}"
     cp "$TMPDIR/app.asar" "$out/lib/chatgpt/resources/app.asar"
@@ -182,6 +187,13 @@ stdenv.mkDerivation {
     "libc.musl-x86_64.so.1"
     "libc.musl-aarch64.so.1"
   ];
+
+  doInstallCheck = true;
+  installCheckPhase = ''
+    runHook preInstallCheck
+    node ${./test-plugin-permissions.cjs} app/.vite/build ${./patch-plugin-permissions.cjs}
+    runHook postInstallCheck
+  '';
 
   preFixup = ''
     gappsWrapperArgs+=(

@@ -15,7 +15,7 @@ This packages the real, native Linux build published by OpenAI. It does not wrap
 - **No unofficial repack**: the application payload is not rebuilt or patched with third-party features.
 - **NixOS-ready**: provides a NixOS module, overlay, package, and runnable app output.
 - **Native desktop integration**: preserves OpenAI's launcher, desktop entry, icon, URL handler, and MIME associations.
-- **Nix runtime adaptation only**: patches ELF interpreters and library paths so the official binaries can run in the Nix store.
+- **Nix runtime adaptation only**: adapts ELF interpreters, library paths, and writable plugin-cache copies for the Nix store.
 - **Automatic updates**: GitHub Actions checks OpenAI's release artifacts hourly and commits verified version, ETag, and SHA-256 changes.
 - **Multi-architecture**: supports both `x86_64-linux` and `aarch64-linux` from OpenAI's official `amd64` and `arm64` packages.
 - **Reproducible inputs**: pins each upstream `.deb` by content hash and locks `nixpkgs` through `flake.lock`.
@@ -87,9 +87,22 @@ The derivation only performs changes required by the Nix store layout:
 1. Extract OpenAI's `.deb`.
 2. Patch native ELF interpreter and dependency paths.
 3. Add the required runtime libraries and desktop utilities.
-4. Install the upstream desktop entry, icon, and `chatgpt` launcher.
+4. Adapt libc detection and ensure copied plugin caches are owner-writable.
+5. Install the upstream desktop entry, icon, and `chatgpt` launcher.
 
-It does not modify ChatGPT's application code.
+These compatibility patches preserve the upstream application's behavior on NixOS.
+
+Bundled plugins are copied out of the read-only Nix store before the app customizes
+their manifests and skills. The Linux copy helper makes those destination files
+and directories owner-writable, preserving executable bits and skipping symlinks.
+Without this adaptation, a manifest write can fail with `EACCES`, aborting the
+marketplace update and leaving an older Browser plugin paired with a newer runtime.
+The store originals and symlink targets remain unchanged.
+
+Every package build tests the patched copy helper against read-only fixtures,
+including manifest edits, directory removal, repeated updates, and source and
+symlink-target preservation. The build fails if the upstream copy helper changes
+so that the patch needs review.
 
 ## Updating
 
