@@ -16,9 +16,9 @@ This packages the real, native Linux build published by OpenAI. It does not wrap
 - **NixOS-ready**: provides a NixOS module, overlay, package, and runnable app output.
 - **Native desktop integration**: preserves OpenAI's launcher, desktop entry, icon, URL handler, and MIME associations.
 - **Nix runtime adaptation only**: adapts ELF interpreters, library paths, and writable plugin-cache copies for the Nix store.
-- **Automatic updates**: GitHub Actions checks OpenAI's release artifacts hourly and commits verified version, ETag, and SHA-256 changes.
+- **Automatic updates**: GitHub Actions checks OpenAI's APT indexes hourly and commits verified versions and SHA-256 hashes.
 - **Multi-architecture**: supports both `x86_64-linux` and `aarch64-linux` from OpenAI's official `amd64` and `arm64` packages.
-- **Reproducible inputs**: pins each upstream `.deb` by content hash and locks `nixpkgs` through `flake.lock`.
+- **Reproducible inputs**: pins each upstream `.deb` by versioned URL and content hash, and locks `nixpkgs` through `flake.lock`.
 
 ## Usage
 
@@ -71,10 +71,15 @@ The installed command is `chatgpt`.
 
 The flake consumes OpenAI's official Debian packages directly:
 
-| Nix system | OpenAI architecture | Official package |
+| Nix system | OpenAI architecture | Official APT index |
 | --- | --- | --- |
-| `x86_64-linux` | `amd64` | [`chatgpt_amd64.deb`](https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_amd64.deb) |
-| `aarch64-linux` | `arm64` | [`chatgpt_arm64.deb`](https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_arm64.deb) |
+| `x86_64-linux` | `amd64` | [Packages](https://persistent.oaistatic.com/codex-app-prod/linux/deb/dists/stable/main/binary-amd64/Packages) |
+| `aarch64-linux` | `arm64` | [Packages](https://persistent.oaistatic.com/codex-app-prod/linux/deb/dists/stable/main/binary-arm64/Packages) |
+
+Each package is fetched from
+`https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_${version}_${arch}.deb`.
+The `/latest/` URLs are overwritten on new releases and are deliberately avoided:
+otherwise a fresh download can fail its pinned hash while a cached build succeeds.
 
 OpenAI also publishes official RPM packages, but this flake uses the equivalent `.deb` payloads as its canonical source.
 
@@ -106,12 +111,21 @@ so that the patch needs review.
 
 ## Updating
 
-The scheduled workflow checks the ETags of both official packages every hour. When OpenAI publishes new artifacts, it downloads both architectures, validates their Debian metadata, requires matching versions, computes Nix SHA-256 hashes, builds the x86_64 package, evaluates every flake output, and commits the update.
+The scheduled workflow reads the version, filename, size, and SHA-256 from both
+official APT indexes every hour. It requires matching versions and refuses
+automatic downgrades. Before replacing `sources.nix`, it fetches both versioned
+packages through Nix with the expected hashes, checks their sizes, and validates
+their Debian package names, versions, and architectures. A failed download or
+partial release leaves both previous pins intact. ETags are no longer used.
+The workflow then builds the x86_64 package, evaluates every flake output, and
+commits the update.
 
-Run the same updater locally:
+Run the same updater locally from the repository root (requires Python 3, curl, and Nix;
+the updater uses the locked nixpkgs input to provide `dpkg-deb`):
 
 ```sh
 ./scripts/update.sh
+python3 scripts/test-update.py
 nix build .#chatgpt-desktop-app
 nix flake check --all-systems --no-build
 ```

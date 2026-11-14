@@ -48,6 +48,7 @@
   openssh,
   pango,
   systemd,
+  tpm2-tss,
   trash-cli,
   vulkan-loader,
   wayland,
@@ -88,6 +89,7 @@ let
     pango
     stdenv.cc.cc.lib
     systemd
+    tpm2-tss
     vulkan-loader
     wayland
     libx11
@@ -117,7 +119,8 @@ stdenv.mkDerivation {
   inherit (sources) version;
 
   src = fetchurl {
-    url = "https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_${source.debArch}.deb";
+    # latest/ is overwritten on release; keep fresh downloads reproducible.
+    url = "https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_${sources.version}_${source.debArch}.deb";
     inherit (source) hash;
   };
 
